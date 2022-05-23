@@ -11,7 +11,9 @@ from utils import *
 from nltk.translate.bleu_score import corpus_bleu
 
 # Data parameters
-data_folder = "/opt/ml/input/Dataset"  # folder with data files saved by create_input_files.py
+data_folder = (
+    "./Dataset"  # folder with data files saved by create_input_files.py
+)
 data_name = "5_cap_per_img_"  # base name shared by data files
 tokenizer = AutoTokenizer.from_pretrained("monologg/kobigbird-bert-base")
 
@@ -98,7 +100,6 @@ def main():
     criterion = nn.CrossEntropyLoss().to(device)
 
     # Custom dataloaders
-    # TODO 255로 나누는 거 추가?? eval엔 추가되어있는데 왜 여긴 없지??
     normalize = transforms.Normalize(
         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
     )
