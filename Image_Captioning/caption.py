@@ -127,7 +127,9 @@ def caption_image_beam_search(
             )  # (s)
 
         # Convert unrolled indices to actual indices of scores
-        prev_word_inds = top_k_words // vocab_size  # (s)
+        prev_word_inds = torch.div(
+            top_k_words, vocab_size, rounding_mode="trunc"
+        )  # (s)
         next_word_inds = top_k_words % vocab_size  # (s)
 
         # Add new words to sequences, alphas
@@ -171,12 +173,14 @@ def caption_image_beam_search(
         if step > 50:
             break
         step += 1
-    print(complete_seqs_scores)
+
     i = complete_seqs_scores.index(max(complete_seqs_scores))
+
     seq = complete_seqs[i]
+    decoded_seq = tokenizer.decode(seq, skip_special_tokens=True)
     alphas = complete_seqs_alpha[i]
 
-    return seq, alphas
+    return seq, decoded_seq, alphas
 
 
 def visualize_att(image_path, seq, alphas, tokenizer, smooth=True):
@@ -269,12 +273,12 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name)
 
     # Encode, decode with attention and beam search
-    seq, alphas = caption_image_beam_search(
+    seq, decoded_seq, alphas = caption_image_beam_search(
         encoder, decoder, args.img, tokenizer, args.beam_size
     )
     alphas = torch.FloatTensor(alphas)
 
-    print(seq)
+    print(decoded_seq)
 
     # Visualize caption and attention of best sequence
     # visualize_att(args.img, seq, alphas, tokenizer, args.smooth)
