@@ -100,7 +100,7 @@ class Attention(nn.Module):
         att2 = self.decoder_att(decoder_hidden)  # (batch_size, attention_dim)
         att = self.full_att(self.relu(att1 + att2.unsqueeze(1))).squeeze(
             2
-        )  # (batch_size, num_pixels) / pixel wise attention(pixel에 걸쳐서 attention이 1이 되게 함.)
+        )  # (batch_size, num_pixels)
         alpha = self.softmax(att)  # (batch_size, num_pixels)
         # alpha는 Attention Score를 뜻하는듯
 
