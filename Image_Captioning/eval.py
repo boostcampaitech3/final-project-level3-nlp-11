@@ -9,10 +9,10 @@ import torch.nn.functional as F
 from tqdm import tqdm
 
 # Parameters
-data_folder = "/opt/ml/input/Image_Captioning/Dataset"  # folder with data files saved by create_input_files.py
+data_folder = "./Dataset"  # folder with data files saved by create_input_files.py
 data_name = "5_cap_per_img_"  # base name shared by data files
 checkpoint = (
-    "/opt/ml/input/Image_Captioning/BEST_checkpoint_5_cap_per_img_.pth.tar"  # model checkpoint
+    "./BEST_checkpoint_5_cap_per_img_.pth.tar"  # model checkpoint
 )
 
 tokenizer_name = "monologg/kobigbird-bert-base"
