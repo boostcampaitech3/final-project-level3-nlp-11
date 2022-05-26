@@ -76,11 +76,17 @@ def reed_root(beam: int = Form(...), file: UploadFile = File(...)):
     seq, decoded_seq, alphas = caption_image_beam_search(
         ic_encoder, ic_decoder, file.file, ic_tokenizer, beam
     )
+
+    try:
+        caption = str(decoded_seq)
+    except:
+        caption = '어떤 사진인지 잘 모르겠습니다 😥'
+
     return {
         'device': str(device),
         'inference_time': str(time.time() - start),
         'seq': str(seq),
-        'caption': str(decoded_seq)}
+        'caption': caption}
 
 
 @app.post('/api/v1/vqa')
