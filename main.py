@@ -1,5 +1,5 @@
 """
-$ uvicorn main:app --host 0.0.0.0 --port 8000
+$ uvicorn main:app --host 0.0.0.0 --port PORT
 """
 
 from fastapi import FastAPI, Form, File, UploadFile
@@ -14,7 +14,7 @@ import time
 
 from googletrans import Translator
 
-from utils import caption_image_beam_search
+from Image_Captioning.caption import caption_image_beam_search
 
 
 app = FastAPI()
@@ -40,6 +40,7 @@ patch_resize_transform = transforms.Compose([
     transforms.ToTensor(), 
     transforms.Normalize(mean=mean, std=std)
 ])
+
 
 @app.on_event('startup')
 def startup_event():
@@ -76,11 +77,17 @@ def reed_root(beam: int = Form(...), file: UploadFile = File(...)):
     seq, decoded_seq, alphas = caption_image_beam_search(
         ic_encoder, ic_decoder, file.file, ic_tokenizer, beam
     )
+
+    try:
+        caption = str(decoded_seq)
+    except:
+        caption = '어떤 사진인지 잘 모르겠습니다 😥'
+
     return {
         'device': str(device),
         'inference_time': str(time.time() - start),
         'seq': str(seq),
-        'caption': str(decoded_seq)}
+        'caption': caption}
 
 
 @app.post('/api/v1/vqa')
