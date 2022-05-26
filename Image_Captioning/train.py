@@ -9,6 +9,8 @@ from models import Encoder, DecoderWithAttention
 from datasets import *
 from utils import *
 from nltk.translate.bleu_score import corpus_bleu
+from transformers import AutoTokenizer
+
 
 # Data parameters
 data_folder = "./Dataset"  # folder with data files saved by create_input_files.py
