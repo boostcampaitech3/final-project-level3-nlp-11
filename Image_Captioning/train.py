@@ -11,9 +11,7 @@ from utils import *
 from nltk.translate.bleu_score import corpus_bleu
 
 # Data parameters
-data_folder = (
-    "./Dataset"  # folder with data files saved by create_input_files.py
-)
+data_folder = "./Dataset"  # folder with data files saved by create_input_files.py
 data_name = "5_cap_per_img_"  # base name shared by data files
 tokenizer = AutoTokenizer.from_pretrained("monologg/kobigbird-bert-base")
 
@@ -29,10 +27,10 @@ cudnn.benchmark = False  # set to true only if inputs to model are fixed size; o
 
 # Training parameters
 start_epoch = 0
-epochs = (
-    10  # number of epochs to train for (if early stopping is not triggered)
+epochs = 10  # number of epochs to train for (if early stopping is not triggered)
+epochs_since_improvement = (
+    0  # keeps track of number of epochs since there's been an improvement in validation BLEU
 )
-epochs_since_improvement = 0  # keeps track of number of epochs since there's been an improvement in validation BLEU
 batch_size = 32
 workers = 0  # for data-loading; right now, only 1 works with h5py
 encoder_lr = 1e-4  # learning rate for encoder if fine-tuning
@@ -100,9 +98,7 @@ def main():
     criterion = nn.CrossEntropyLoss().to(device)
 
     # Custom dataloaders
-    normalize = transforms.Normalize(
-        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-    )
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     train_loader = torch.utils.data.DataLoader(
         CaptionDataset(
             data_folder,
@@ -165,10 +161,7 @@ def main():
         best_bleu4 = max(recent_bleu4, best_bleu4)
         if not is_best:
             epochs_since_improvement += 1
-            print(
-                "\nEpochs since last improvement: %d\n"
-                % (epochs_since_improvement,)
-            )
+            print("\nEpochs since last improvement: %d\n" % (epochs_since_improvement,))
         else:
             epochs_since_improvement = 0
 
@@ -228,21 +221,15 @@ def train(
 
         # Forward prop.
         imgs = encoder(imgs)
-        scores, caps_sorted, decode_lengths, alphas, sort_ind = decoder(
-            imgs, caps, caplens
-        )
+        scores, caps_sorted, decode_lengths, alphas, sort_ind = decoder(imgs, caps, caplens)
 
         # Since we decoded starting with <start>, the targets are all words after <start>, up to <end>
         targets = caps_sorted[:, 1:]
 
         # Remove timesteps that we didn't decode at, or are pads
         # pack_padded_sequence is an easy trick to do this
-        scores = pack_padded_sequence(
-            scores, decode_lengths, batch_first=True
-        ).data
-        targets = pack_padded_sequence(
-            targets, decode_lengths, batch_first=True
-        ).data
+        scores = pack_padded_sequence(scores, decode_lengths, batch_first=True).data
+        targets = pack_padded_sequence(targets, decode_lengths, batch_first=True).data
 
         # Calculate loss
         loss = criterion(scores, targets)
@@ -314,9 +301,7 @@ def validate(val_loader, encoder, decoder, criterion):
 
     start = time.time()
 
-    references = (
-        list()
-    )  # references (true captions) for calculating BLEU-4 score
+    references = list()  # references (true captions) for calculating BLEU-4 score
     hypotheses = list()  # hypotheses (predictions)
 
     # explicitly disable gradient calculation to avoid CUDA memory error
@@ -333,9 +318,7 @@ def validate(val_loader, encoder, decoder, criterion):
             # Forward prop.
             if encoder is not None:
                 imgs = encoder(imgs)
-            scores, caps_sorted, decode_lengths, alphas, sort_ind = decoder(
-                imgs, caps, caplens
-            )
+            scores, caps_sorted, decode_lengths, alphas, sort_ind = decoder(imgs, caps, caplens)
 
             # Since we decoded starting with <start>, the targets are all words after <start>, up to <end>
             targets = caps_sorted[:, 1:]
@@ -343,12 +326,8 @@ def validate(val_loader, encoder, decoder, criterion):
             # Remove timesteps that we didn't decode at, or are pads
             # pack_padded_sequence is an easy trick to do this
             scores_copy = scores.clone()
-            scores = pack_padded_sequence(
-                scores, decode_lengths, batch_first=True
-            ).data
-            targets = pack_padded_sequence(
-                targets, decode_lengths, batch_first=True
-            ).data
+            scores = pack_padded_sequence(scores, decode_lengths, batch_first=True).data
+            targets = pack_padded_sequence(targets, decode_lengths, batch_first=True).data
 
             # Calculate loss
             loss = criterion(scores, targets)
@@ -383,9 +362,7 @@ def validate(val_loader, encoder, decoder, criterion):
             # references = [[ref1a, ref1b, ref1c], [ref2a, ref2b], ...], hypotheses = [hyp1, hyp2, ...]
 
             # References
-            allcaps = allcaps[
-                sort_ind
-            ]  # because images were sorted in the decoder
+            allcaps = allcaps[sort_ind]  # because images were sorted in the decoder
             for j in range(allcaps.shape[0]):
                 img_caps = allcaps[j].tolist()
                 img_captions = list(
@@ -417,6 +394,7 @@ def validate(val_loader, encoder, decoder, criterion):
 
         # Calculate BLEU-4 scores
         bleu4 = corpus_bleu(references, hypotheses)
+        # reference 는 4개, hypotheses는 1개
 
         print(
             "\n * LOSS - {loss.avg:.3f}, TOP-5 ACCURACY - {top5.avg:.3f}, BLEU-4 - {bleu}\n".format(

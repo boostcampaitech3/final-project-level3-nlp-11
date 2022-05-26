@@ -61,7 +61,7 @@ train
 python train.py 
 ```
 
-eval(This has not yet been implemented.)
+eval
 ```
 python eval.py 
 ```
