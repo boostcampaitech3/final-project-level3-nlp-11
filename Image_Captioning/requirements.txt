@@ -8,4 +8,4 @@ Pillow @ file:///tmp/build/80754af9/pillow_1609786786540/work
 torch==1.10.0
 torchvision==0.8.2
 transformers==4.5.0
-
+gensim==4.2.0

@@ -1,5 +1,5 @@
 # Image Captioning
-### Image Captioning
+### Image Captioning(한국어 Image Captioning)
 
 In this article,,,,
 https://github.com/FrancescoSaverioZuppichini/PyTorch-Deep-Learning-Template/blob/master/README.md
@@ -71,5 +71,12 @@ python eval.py
 python caption.py --img ./Dataset/test2014/COCO_test2014_000000141623.jpg --model ./BEST_checkpoint_5_cap_per_img_.pth.tar
 ```
 
-## Reference
+
+# Instructions to run the code
+## Download data
+1. ...
+
+# Reference
 https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Image-Captioning
+
+

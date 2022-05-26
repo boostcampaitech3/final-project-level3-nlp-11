@@ -15,18 +15,14 @@ class Encoder(nn.Module):
         self.enc_image_size = encoded_image_size
 
         # TODO 다른 모델로 바꿔보기
-        resnet = torchvision.models.resnet101(
-            pretrained=True
-        )  # pretrained ImageNet ResNet-101
+        resnet = torchvision.models.resnet101(pretrained=True)  # pretrained ImageNet ResNet-101
 
         # Remove linear and pool layers (since we're not doing classification)
         modules = list(resnet.children())[:-2]
         self.resnet = nn.Sequential(*modules)
 
         # Resize image to fixed size to allow input images of variable size
-        self.adaptive_pool = nn.AdaptiveAvgPool2d(
-            (encoded_image_size, encoded_image_size)
-        )
+        self.adaptive_pool = nn.AdaptiveAvgPool2d((encoded_image_size, encoded_image_size))
 
         self.fine_tune()
 
@@ -37,15 +33,9 @@ class Encoder(nn.Module):
         :param images: images, a tensor of dimensions (batch_size, 3, image_size, image_size)
         :return: encoded images
         """
-        out = self.resnet(
-            images
-        )  # (batch_size, 2048, image_size/32, image_size/32)
-        out = self.adaptive_pool(
-            out
-        )  # (batch_size, 2048, encoded_image_size, encoded_image_size)
-        out = out.permute(
-            0, 2, 3, 1
-        )  # (batch_size, encoded_image_size, encoded_image_size, 2048)
+        out = self.resnet(images)  # (batch_size, 2048, image_size/32, image_size/32)
+        out = self.adaptive_pool(out)  # (batch_size, 2048, encoded_image_size, encoded_image_size)
+        out = out.permute(0, 2, 3, 1)  # (batch_size, encoded_image_size, encoded_image_size, 2048)
         return out
 
     def fine_tune(self, fine_tune=True):
@@ -94,9 +84,7 @@ class Attention(nn.Module):
         :param decoder_hidden: previous decoder output, a tensor of dimension (batch_size, decoder_dim)
         :return: attention weighted encoding, weights
         """
-        att1 = self.encoder_att(
-            encoder_out
-        )  # (batch_size, num_pixels, attention_dim)
+        att1 = self.encoder_att(encoder_out)  # (batch_size, num_pixels, attention_dim)
         att2 = self.decoder_att(decoder_hidden)  # (batch_size, attention_dim)
         att = self.full_att(self.relu(att1 + att2.unsqueeze(1))).squeeze(
             2
@@ -142,9 +130,7 @@ class DecoderWithAttention(nn.Module):
         self.vocab_size = vocab_size
         self.dropout = dropout
 
-        self.attention = Attention(
-            encoder_dim, decoder_dim, attention_dim
-        )  # attention network
+        self.attention = Attention(encoder_dim, decoder_dim, attention_dim)  # attention network
 
         self.embedding = nn.Embedding(vocab_size, embed_dim)  # embedding layer
         self.dropout = nn.Dropout(p=self.dropout)
@@ -162,9 +148,7 @@ class DecoderWithAttention(nn.Module):
             decoder_dim, encoder_dim
         )  # linear layer to create a sigmoid-activated gate
         self.sigmoid = nn.Sigmoid()
-        self.fc = nn.Linear(
-            decoder_dim, vocab_size
-        )  # linear layer to find scores over vocabulary
+        self.fc = nn.Linear(decoder_dim, vocab_size)  # linear layer to find scores over vocabulary
         self.init_weights()  # initialize some layers with the uniform distribution
 
     def init_weights(self):
@@ -226,16 +210,12 @@ class DecoderWithAttention(nn.Module):
 
         # Sort input data by decreasing lengths; why? apparent below
         # Decoding을 수행할 때 [:batch_size_t] 이렇게 인덱싱을 함. 때문에 length 별로 정렬이 되어있어야 함.
-        caption_lengths, sort_ind = caption_lengths.squeeze(1).sort(
-            dim=0, descending=True
-        )
+        caption_lengths, sort_ind = caption_lengths.squeeze(1).sort(dim=0, descending=True)
         encoder_out = encoder_out[sort_ind]
         encoded_captions = encoded_captions[sort_ind]
 
         # Embedding
-        embeddings = self.embedding(
-            encoded_captions
-        )  # (batch_size, max_caption_length, embed_dim)
+        embeddings = self.embedding(encoded_captions)  # (batch_size, max_caption_length, embed_dim)
 
         # Initialize LSTM state
         h, c = self.init_hidden_state(encoder_out)  # (batch_size, decoder_dim)
@@ -247,12 +227,8 @@ class DecoderWithAttention(nn.Module):
         # Create tensors to hold word predicion scores and alphas
         # vocab size만큼의 prob을 저장할 tensor를 생성.
         # num pixel 만큼의 attention score를 저장할 tensor를 생성.
-        predictions = torch.zeros(
-            batch_size, max(decode_lengths), vocab_size
-        ).to(device)
-        alphas = torch.zeros(batch_size, max(decode_lengths), num_pixels).to(
-            device
-        )
+        predictions = torch.zeros(batch_size, max(decode_lengths), vocab_size).to(device)
+        alphas = torch.zeros(batch_size, max(decode_lengths), num_pixels).to(device)
 
         # At each time-step, decode by
         # attention-weighing the encoder's output based on the decoder's previous hidden state output
