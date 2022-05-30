@@ -1,10 +1,5 @@
-# Image Captioning
-### Image Captioning
-
-In this article,,,,
-https://github.com/FrancescoSaverioZuppichini/PyTorch-Deep-Learning-Template/blob/master/README.md
-
-- ddd: ddd...
+## Image Captioning
+This repository is a modified code that enables AI HUB to perform Korean Image Captioning based on the code provided by https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Image-Captioning.
 
 ## Installation
 Clone the repo and go inside it. Then, run:
@@ -52,16 +47,22 @@ python create_input_files.py
 
 
 ## Models
+* show attend and tell
+* https://arxiv.org/abs/1502.03044
+
+
+![image](https://user-images.githubusercontent.com/26568363/170980679-8868f89b-7ac5-453f-8ace-cd794bc5e874.png)
+
 
 
 ## Train/Evaluation
 
-train
+* train
 ```
 python train.py 
 ```
 
-eval
+* eval
 ```
 python eval.py 
 ```
