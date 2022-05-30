@@ -36,7 +36,6 @@ pip install -r requirements.txt
 |   `-- utils.py
 ```
 
-## Project
 
 ## Data
 create_input_files.py 내의 데이터 경로를 수정하고 실행합니다.
@@ -57,12 +56,16 @@ python create_input_files.py
 
 ## Train/Evaluation
 
-* train
+**train**
+* 모델을 훈련시킵니다.
+* 훈련에 필요한 데이터셋 경로, tokenizer 등과 같은 파라미터는 train.py 내에서 설정 가능합니다.
 ```
 python train.py 
 ```
 
-* eval
+**eval**
+* 모델을 평가합니다.
+* 평가에 필요한 파라미터는 eval.py에서 설정 가능합니다.
 ```
 python eval.py 
 ```
