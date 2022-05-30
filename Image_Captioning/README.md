@@ -36,10 +36,12 @@ pip install -r requirements.txt
 |   `-- utils.py
 ```
 
+## Data Preparation
+MS COCO 이미지를 다운로드 하고 ms coco caption json파일도 함께 ./Dataset에 위치시킵니다.
 
 ## Data
 create_input_files.py 내의 데이터 경로를 수정하고 실행합니다.
-json, hdf5 파일이 생성됩니다. 
+./Dataset 내에 json, hdf5 파일이 생성됩니다. 
 ```
 python create_input_files.py
 ```
