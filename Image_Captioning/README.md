@@ -10,7 +10,6 @@ Implementation of "Bottom-Up and Top-Down Attention for Image Captioning and Vis
 ## Structure
 ```bash
 .
-|-- BEST_5checkpoint_5_cap_per_img.pth.tar
 |-- bottom-up_features
 |   |-- make_cocolist.py
 |   |-- train_ids.pkl
