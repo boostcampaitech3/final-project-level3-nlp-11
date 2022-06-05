@@ -9,7 +9,7 @@ import argparse
 from PIL import Image
 from transformers import AutoTokenizer
 from utils import read_image
-
+ 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
