@@ -1,46 +1,46 @@
 import os
-from re import I
 import numpy as np
 import h5py
 import json
-from transformers import AutoTokenizer
 import torch
 from tqdm import tqdm
-from PIL import Image
+from collections import Counter
 from random import seed, choice, sample
+import pickle
+from transformers import AutoTokenizer
 
 
-def create_input_files(
-    tokenizer_name,
-    json_path,
-    image_folder,
-    captions_per_image,
-    output_folder,
-    max_len=100,
-):
+def create_input_files(tokenizer_name, json_path, captions_per_image, output_folder, max_len=100):
     """
     Creates input files for training, validation, and test data.
 
-    :param karpathy_json_path: path of Karpathy JSON file with splits and captions
-    :param image_folder: folder with downloaded images
+    :param dataset: name of dataset. Since bottom up features only available for coco, we use only coco
+    :param json_path: path of ko coco JSON file with splits and captions
     :param captions_per_image: number of captions to sample per image
+    :param min_word_freq: words occuring less frequently than this threshold are binned as <unk>s
     :param output_folder: folder to save files
     :param max_len: don't sample captions longer than this length
     """
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
 
     # Read Karpathy JSON
     with open(json_path, "r") as j:
         data = json.load(j)
 
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+    with open(os.path.join(output_folder, "train36_imgid2idx.pkl"), "rb") as j:
+        train_data = pickle.load(j)
+
+    with open(os.path.join(output_folder, "val36_imgid2idx.pkl"), "rb") as j:
+        val_data = pickle.load(j)
 
     # Read image paths and captions for each image
-    train_image_paths = []
     train_image_captions = []
-    val_image_paths = []
     val_image_captions = []
-    test_image_paths = []
     test_image_captions = []
+    train_image_det = []
+    val_image_det = []
+    test_image_det = []
+    word_freq = Counter()
 
     for idx, row in enumerate(data):
         if "val" in row["file_path"]:  # ko_coco에는 split key가 없기 때문에 만들어줌.
@@ -52,133 +52,90 @@ def create_input_files(
             row["split"] = "train"
 
         captions = []
-
         for cap in row["caption_ko"]:
+            # Update word frequency
             if len(tokenizer.tokenize(cap)) <= max_len:
                 captions.append(cap)
 
         if len(captions) == 0:
             continue
 
-        path = os.path.join(image_folder, row["file_path"])
+        image_id = row["id"]
 
-        if row["split"] in {"train"}:
-            train_image_paths.append(path)
+        if row["split"] == "train":
+            train_image_det.append(("t", train_data[image_id]))
             train_image_captions.append(captions)
-        elif row["split"] in {"valid"}:
-            val_image_paths.append(path)
+
+        elif row["split"] == "valid":
+            val_image_det.append(("v", val_data[image_id]))
             val_image_captions.append(captions)
-        elif row["split"] in {"test"}:
-            test_image_paths.append(path)
+        elif row["split"] == "test":
+            test_image_det.append(("v", val_data[image_id]))
             test_image_captions.append(captions)
 
     # Sanity check
-    assert len(train_image_paths) == len(train_image_captions)
-    assert len(val_image_paths) == len(val_image_captions)
-    assert len(test_image_paths) == len(test_image_captions)
+    assert len(train_image_det) == len(train_image_captions)
+    assert len(val_image_det) == len(val_image_captions)
+    assert len(test_image_det) == len(test_image_captions)
 
     # Create a base/root name for all output files
-    base_filename = str(captions_per_image) + "_cap_per_img_"
+    base_filename = str(captions_per_image) + "_cap_per_img"
 
-    # Sample captions for each image, save images to HDF5 file, and captions and their lengths to JSON files
-    seed(123)
     for impaths, imcaps, split in [
-        (train_image_paths, train_image_captions, "TRAIN"),
-        (val_image_paths, val_image_captions, "VAL"),
-        (test_image_paths, test_image_captions, "TEST"),
+        (train_image_det, train_image_captions, "TRAIN"),
+        (val_image_det, val_image_captions, "VAL"),
+        (test_image_det, test_image_captions, "TEST"),
     ]:
+        enc_captions = []
+        caplens = []
 
-        with h5py.File(
-            os.path.join(
-                output_folder, split + "_IMAGES_" + base_filename + ".hdf5"
-            ),
-            "a",
-        ) as h:
-            # Make a note of the number of captions we are sampling per image
-            h.attrs["captions_per_image"] = captions_per_image
-
-            # Create dataset inside HDF5 file to store images
-            images = h.create_dataset(
-                "images", (len(impaths), 3, 256, 256), dtype="uint8"
-            )
-
-            print(
-                "\nReading %s images and captions, storing to file...\n" % split
-            )
-
-            enc_captions = []
-            caplens = []
-
-            for i, path in enumerate(tqdm(impaths)):
-
-                # Sample captions
-                if len(imcaps[i]) < captions_per_image:
-                    captions = imcaps[i] + [
-                        choice(imcaps[i])
-                        for _ in range(captions_per_image - len(imcaps[i]))
-                    ]
-                else:
-                    captions = sample(imcaps[i], k=captions_per_image)
-
-                # Sanity check
-                assert len(captions) == captions_per_image
-
-                # Read images
-                img = read_image(impaths[i])
-
-                # Save image to HDF5 file
-                images[i] = img
-                # TODO 지금은 MaxLength기준으로 Padding을 수행하는데, 이러면 Padding이 넘 많아짐!! batch별로 padding 하도록 수정하기
-                for j, c in enumerate(captions):
-                    # Encode captions
-                    enc_c = tokenizer.encode(
-                        c,
-                        max_length=max_len,
-                        padding="max_length",
-                        truncation=True,
-                    )
-                    # Find caption lengths
-
-                    enc_captions.append(enc_c)
-                    caplens.append(len(enc_c) - enc_c.count(0))
+        for i, path in enumerate(tqdm(impaths)):
+            # Sample captions
+            if len(imcaps[i]) < captions_per_image:
+                captions = imcaps[i] + [
+                    choice(imcaps[i]) for _ in range(captions_per_image - len(imcaps[i]))
+                ]
+            else:
+                captions = sample(imcaps[i], k=captions_per_image)
 
             # Sanity check
-            assert (
-                images.shape[0] * captions_per_image
-                == len(enc_captions)
-                == len(caplens)
-            )
+            assert len(captions) == captions_per_image
 
-            # Save encoded captions and their lengths to JSON files
-            with open(
-                os.path.join(
-                    output_folder,
-                    split + "_CAPTIONS_" + base_filename + ".json",
-                ),
-                "w",
-            ) as j:
-                json.dump(enc_captions, j)
+            for j, c in enumerate(captions):
+                # Encode captions
+                enc_c = tokenizer.encode(
+                    c, max_length=max_len, padding="max_length", truncation=True,
+                )
 
-            with open(
-                os.path.join(
-                    output_folder, split + "_CAPLENS_" + base_filename + ".json"
-                ),
-                "w",
-            ) as j:
-                json.dump(caplens, j)
+                enc_captions.append(enc_c)
+                caplens.append(len(enc_c) - enc_c.count(0))
 
+        # Save encoded captions and their lengths to JSON files
+        with open(
+            os.path.join(output_folder, split + "_CAPTIONS_" + base_filename + ".json"), "w"
+        ) as j:
+            json.dump(enc_captions, j)
 
-def read_image(image_path):
-    img = Image.open(image_path)
-    img = np.array(img.resize((256, 256)))
-    if len(img.shape) == 2:
-        img = img[:, :, np.newaxis]
-        img = np.concatenate([img, img, img], axis=2)
-    img = img.transpose(2, 0, 1)
-    assert img.shape == (3, 256, 256)
-    assert np.max(img) <= 255
+        with open(
+            os.path.join(output_folder, split + "_CAPLENS_" + base_filename + ".json"), "w"
+        ) as j:
+            json.dump(caplens, j)
 
-    return img
+    # Save bottom up features indexing to JSON files
+    with open(
+        os.path.join(output_folder, "TRAIN" + "_GENOME_DETS_" + base_filename + ".json"), "w"
+    ) as j:
+        json.dump(train_image_det, j)
+
+    with open(
+        os.path.join(output_folder, "VAL" + "_GENOME_DETS_" + base_filename + ".json"), "w"
+    ) as j:
+        json.dump(val_image_det, j)
+
+    with open(
+        os.path.join(output_folder, "TEST" + "_GENOME_DETS_" + base_filename + ".json"), "w"
+    ) as j:
+        json.dump(test_image_det, j)
 
 
 def init_embedding(embeddings):
@@ -191,70 +148,8 @@ def init_embedding(embeddings):
     torch.nn.init.uniform_(embeddings, -bias, bias)
 
 
-def load_embeddings(emb_file, word_map):
-    """
-    Creates an embedding tensor for the specified word map, for loading into the model.
-
-    :param emb_file: file containing embeddings (stored in GloVe format)
-    :param word_map: word map
-    :return: embeddings in the same order as the words in the word map, dimension of embeddings
-    """
-
-    # Find embedding dimension
-    with open(emb_file, "r") as f:
-        emb_dim = len(f.readline().split(" ")) - 1
-
-    vocab = set(word_map.keys())
-
-    # Create tensor to hold embeddings, initialize
-    embeddings = torch.FloatTensor(len(vocab), emb_dim)
-    init_embedding(embeddings)
-
-    # Read embedding file
-    print("\nLoading embeddings...")
-    for line in open(emb_file, "r"):
-        line = line.split(" ")
-
-        emb_word = line[0]
-        embedding = list(
-            map(
-                lambda t: float(t),
-                filter(lambda n: n and not n.isspace(), line[1:]),
-            )
-        )
-
-        # Ignore word if not in train_vocab
-        if emb_word not in vocab:
-            continue
-
-        embeddings[word_map[emb_word]] = torch.FloatTensor(embedding)
-
-    return embeddings, emb_dim
-
-
-def clip_gradient(optimizer, grad_clip):
-    """
-    Clips gradients computed during backpropagation to avoid explosion of gradients.
-
-    :param optimizer: optimizer with the gradients to be clipped
-    :param grad_clip: clip value
-    """
-    for group in optimizer.param_groups:
-        for param in group["params"]:
-            if param.grad is not None:
-                param.grad.data.clamp_(-grad_clip, grad_clip)
-
-
 def save_checkpoint(
-    data_name,
-    epoch,
-    epochs_since_improvement,
-    encoder,
-    decoder,
-    encoder_optimizer,
-    decoder_optimizer,
-    bleu4,
-    is_best,
+    data_name, epoch, epochs_since_improvement, decoder, decoder_optimizer, bleu4, is_best
 ):
     """
     Saves model checkpoint.
@@ -262,9 +157,7 @@ def save_checkpoint(
     :param data_name: base name of processed dataset
     :param epoch: epoch number
     :param epochs_since_improvement: number of epochs since last improvement in BLEU-4 score
-    :param encoder: encoder model
     :param decoder: decoder model
-    :param encoder_optimizer: optimizer to update encoder's weights, if fine-tuning
     :param decoder_optimizer: optimizer to update decoder's weights
     :param bleu4: validation BLEU-4 score for this epoch
     :param is_best: is this checkpoint the best so far?
@@ -273,9 +166,7 @@ def save_checkpoint(
         "epoch": epoch,
         "epochs_since_improvement": epochs_since_improvement,
         "bleu-4": bleu4,
-        "encoder": encoder,
         "decoder": decoder,
-        "encoder_optimizer": encoder_optimizer,
         "decoder_optimizer": decoder_optimizer,
     }
     filename = "checkpoint_" + data_name + ".pth.tar"

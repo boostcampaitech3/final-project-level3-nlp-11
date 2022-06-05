@@ -1,40 +1,32 @@
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
-import torchvision.transforms as transforms
 from datasets import *
 from utils import *
 from nltk.translate.bleu_score import corpus_bleu
 import torch.nn.functional as F
 from tqdm import tqdm
+from transformers import AutoTokenizer
 
 # Parameters
-data_folder = "./Dataset"  # folder with data files saved by create_input_files.py
-data_name = "5_cap_per_img_"  # base name shared by data files
-checkpoint = (
-    "./BEST_checkpoint_5_cap_per_img_.pth.tar"  # model checkpoint
-)
-
-tokenizer_name = "monologg/kobigbird-bert-base"
+data_folder = "final_dataset"  # folder with data files saved by create_input_files.py
+data_name = "5_cap_per_img"  # base name shared by data files
+checkpoint_file = "/opt/ml/input/BUTD/checkpoint_5_cap_per_img.pth.tar"  # model checkpoint
 device = torch.device(
     "cuda" if torch.cuda.is_available() else "cpu"
 )  # sets device for model and PyTorch tensors
 cudnn.benchmark = True  # set to true only if inputs to model are fixed size; otherwise lot of computational overhead
 
-
 # Load model
-checkpoint = torch.load(checkpoint)
+torch.nn.Module.dump_patches = True
+checkpoint = torch.load(checkpoint_file, map_location=device)
 decoder = checkpoint["decoder"]
 decoder = decoder.to(device)
 decoder.eval()
-encoder = checkpoint["encoder"]
-encoder = encoder.to(device)
-encoder.eval()
 
-tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+# Load word map (word2ix)
+tokenizer = AutoTokenizer.from_pretrained("monologg/kobigbird-bert-base")
 vocab_size = tokenizer.vocab_size
-# Normalization transform
-normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
 
 def evaluate(beam_size):
@@ -42,19 +34,16 @@ def evaluate(beam_size):
     Evaluation
 
     :param beam_size: beam size at which to generate captions for evaluation
-    :return: BLEU-4 score
+    :return: Official MSCOCO evaluator scores - bleu4, cider, rouge, meteor
     """
     # DataLoader
     loader = torch.utils.data.DataLoader(
-        CaptionDataset(data_folder, data_name, "TEST", transform=transforms.Compose([normalize])),
+        CaptionDataset(data_folder, data_name, "TEST"),
         batch_size=1,
-        shuffle=True,
+        shuffle=False,
         num_workers=1,
-        pin_memory=True,
+        pin_memory=torch.cuda.is_available(),
     )
-
-    # TODO: Batched Beam Search
-    # Therefore, do not use a batch_size greater than 1 - IMPORTANT!
 
     # Lists to store references (true captions), and hypothesis (prediction) for each image
     # If for n images, we have n hypotheses, and references a, b, c... for each image, we need -
@@ -63,29 +52,20 @@ def evaluate(beam_size):
     hypotheses = list()
 
     # For each image
-    for i, (image, caps, caplens, allcaps) in enumerate(
+    for i, (image_features, caps, caplens, allcaps) in enumerate(
         tqdm(loader, desc="EVALUATING AT BEAM SIZE " + str(beam_size))
     ):
 
         k = beam_size
 
         # Move to GPU device, if available
-        image = image.to(device)  # (1, 3, 256, 256)
-
-        # Encode
-        encoder_out = encoder(image)  # (1, enc_image_size, enc_image_size, encoder_dim)
-        enc_image_size = encoder_out.size(1)
-        encoder_dim = encoder_out.size(3)
-
-        # Flatten encoding
-        encoder_out = encoder_out.view(1, -1, encoder_dim)  # (1, num_pixels, encoder_dim)
-        num_pixels = encoder_out.size(1)
-
-        # We'll treat the problem as having a batch size of k
-        encoder_out = encoder_out.expand(k, num_pixels, encoder_dim)  # (k, num_pixels, encoder_dim)
+        image_features = image_features.to(device)
+        image_features_mean = image_features.mean(1).to(
+            device
+        )  # (batch_size, num_pixels, encoder_dim)
+        image_features_mean = image_features_mean.expand(k, 2048)
 
         # Tensor to store top k previous words at each step; now they're just <start>
-        # start token을 K개만큼 만든다.
         k_prev_words = torch.LongTensor([[tokenizer.cls_token_id]] * k).to(device)  # (k, 1)
 
         # Tensor to store top k sequences; now they're just <start>
@@ -100,23 +80,22 @@ def evaluate(beam_size):
 
         # Start decoding
         step = 1
-        h, c = decoder.init_hidden_state(encoder_out)
+        h1, c1 = decoder.init_hidden_state(k)  # (batch_size, decoder_dim)
+        h2, c2 = decoder.init_hidden_state(k)
 
         # s is a number less than or equal to k, because sequences are removed from this process once they hit <end>
         while True:
 
             embeddings = decoder.embedding(k_prev_words).squeeze(1)  # (s, embed_dim)
+            h1, c1 = decoder.top_down_attention(
+                torch.cat([h2, image_features_mean, embeddings], dim=1), (h1, c1)
+            )  # (batch_size_t, decoder_dim)
+            attention_weighted_encoding = decoder.attention(image_features, h1)
+            h2, c2 = decoder.language_model(
+                torch.cat([attention_weighted_encoding, h1], dim=1), (h2, c2)
+            )
 
-            awe, _ = decoder.attention(encoder_out, h)  # (s, encoder_dim), (s, num_pixels)
-
-            gate = decoder.sigmoid(decoder.f_beta(h))  # gating scalar, (s, encoder_dim)
-            awe = gate * awe
-
-            h, c = decoder.decode_step(
-                torch.cat([embeddings, awe], dim=1), (h, c)
-            )  # (s, decoder_dim)
-
-            scores = decoder.fc(h)  # (s, vocab_size)
+            scores = decoder.fc(h2)  # (s, vocab_size)
             scores = F.log_softmax(scores, dim=1)
 
             # Add
@@ -156,9 +135,11 @@ def evaluate(beam_size):
             if k == 0:
                 break
             seqs = seqs[incomplete_inds]
-            h = h[prev_word_inds[incomplete_inds]]
-            c = c[prev_word_inds[incomplete_inds]]
-            encoder_out = encoder_out[prev_word_inds[incomplete_inds]]
+            h1 = h1[prev_word_inds[incomplete_inds]]
+            c1 = c1[prev_word_inds[incomplete_inds]]
+            h2 = h2[prev_word_inds[incomplete_inds]]
+            c2 = c2[prev_word_inds[incomplete_inds]]
+            image_features_mean = image_features_mean[prev_word_inds[incomplete_inds]]
             top_k_scores = top_k_scores[incomplete_inds].unsqueeze(1)
             k_prev_words = next_word_inds[incomplete_inds].unsqueeze(1)
 
@@ -166,14 +147,16 @@ def evaluate(beam_size):
             if step > 50:
                 break
             step += 1
+
         try:
             i = complete_seqs_scores.index(max(complete_seqs_scores))
             seq = complete_seqs[i]
         except:
             seq = [2, 22460, 3]
-
         # References
         img_caps = allcaps[0].tolist()
+        # img_caps = tokenizer.batch_decode(img_caps, skip_special_tokens=True)
+
         img_captions = list(
             map(
                 lambda c: [
@@ -185,23 +168,25 @@ def evaluate(beam_size):
                 img_caps,
             )
         )  # remove <start> and pads
+
         references.append(img_captions)
+
         # Hypotheses
-        hypotheses.append(
-            [
-                w
-                for w in seq
-                if w not in {tokenizer.cls_token_id, tokenizer.sep_token_id, tokenizer.pad_token_id}
-            ]
-        )
+        # hypothesis = tokenizer.decode(seq, skip_special_tokens=True)
+        hypothesis = [
+            w
+            for w in seq
+            if w not in {tokenizer.cls_token_id, tokenizer.sep_token_id, tokenizer.pad_token_id}
+        ]
+        hypotheses.append(hypothesis)
         assert len(references) == len(hypotheses)
 
-    # Calculate BLEU-4 scores
+    # Calculate scores
     bleu4 = corpus_bleu(references, hypotheses)
-
     return bleu4
 
 
 if __name__ == "__main__":
     beam_size = 1
-    print("\nBLEU-4 score @ beam size of %d is %.4f." % (beam_size, evaluate(beam_size)))
+    metrics = evaluate(beam_size)
+    print(metrics)

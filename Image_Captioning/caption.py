@@ -1,57 +1,34 @@
-import torch
+import torch.backends.cudnn as cudnn
+import torch.optim
+import torch.utils.data
+from datasets import *
+from utils import *
 import torch.nn.functional as F
-import numpy as np
-import torchvision.transforms as transforms
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-import skimage.transform
-import argparse
-from PIL import Image
 from transformers import AutoTokenizer
-from utils import read_image
- 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+from feature_extract.modeling_frcnn import GeneralizedRCNN
+from feature_extract.preprocessing_image import Preprocess
+from feature_extract.utils import Config
+import torch
+import argparse
+import warnings
+import time
+
+warnings.filterwarnings("ignore")
+
+device = torch.device(
+    "cuda" if torch.cuda.is_available() else "cpu"
+)  # sets device for model and PyTorch tensors
 
 
-def caption_image_beam_search(encoder, decoder, image_path, tokenizer, beam_size=3):
-    """
-    Reads an image and captions it with beam search.
-
-    :param encoder: encoder model
-    :param decoder: decoder model
-    :param image_path: path to image
-    :param tokenizer: transfomers pretrained tokenizer
-    :param beam_size: number of sequences to consider at each decode-step
-    :return: caption, weights for visualization
-    """
-
+def caption_image_beam_search(image_features, decoder, tokenizer, beam_size=3):
+    # For each image
     k = beam_size
     vocab_size = tokenizer.vocab_size
 
-    # Read image and process
-    img = read_image(image_path)
-    img = img / 255.0
-    img = torch.FloatTensor(img).to(device)
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    transform = transforms.Compose([normalize])
-    image = transform(img)  # (3, 256, 256)
-
-    # Encode
-    image = image.unsqueeze(0)  # (1, 3, 256, 256)
-    encoder_out = encoder(image)  # (1, enc_image_size, enc_image_size, encoder_dim)
-    enc_image_size = encoder_out.size(1)
-    encoder_dim = encoder_out.size(3)
-
-    # Flatten encoding
-    encoder_out = encoder_out.view(1, -1, encoder_dim)  # (1, num_pixels, encoder_dim)
-    num_pixels = encoder_out.size(1)
-
-    # We'll treat the problem as having a batch size of k
-    # tensor를 beam_size만큼 확장한다.(Beam size만큼 추론하기 위해서!)
-    encoder_out = encoder_out.expand(k, num_pixels, encoder_dim)  # (k, num_pixels, encoder_dim)
+    image_features_mean = image_features.mean(1).to(device)  # (batch_size, num_pixels, encoder_dim)
+    image_features_mean = image_features_mean.expand(k, 2048)
 
     # Tensor to store top k previous words at each step; now they're just <start>
-    # start token을 K개만큼 만든다.
     k_prev_words = torch.LongTensor([[tokenizer.cls_token_id]] * k).to(device)  # (k, 1)
 
     # Tensor to store top k sequences; now they're just <start>
@@ -60,62 +37,46 @@ def caption_image_beam_search(encoder, decoder, image_path, tokenizer, beam_size
     # Tensor to store top k sequences' scores; now they're just 0
     top_k_scores = torch.zeros(k, 1).to(device)  # (k, 1)
 
-    # Tensor to store top k sequences' alphas; now they're just 1s
-    # alpha는 Attention Score를 뜻하는듯
-    seqs_alpha = torch.ones(k, 1, enc_image_size, enc_image_size).to(
-        device
-    )  # (k, 1, enc_image_size, enc_image_size)
-
-    # Lists to store completed sequences, their alphas and scores
+    # Lists to store completed sequences and scores
     complete_seqs = list()
-    complete_seqs_alpha = list()
     complete_seqs_scores = list()
 
     # Start decoding
     step = 1
-    h, c = decoder.init_hidden_state(encoder_out)
+    h1, c1 = decoder.init_hidden_state(k)  # (batch_size, decoder_dim)
+    h2, c2 = decoder.init_hidden_state(k)
 
     # s is a number less than or equal to k, because sequences are removed from this process once they hit <end>
     while True:
 
         embeddings = decoder.embedding(k_prev_words).squeeze(1)  # (s, embed_dim)
+        h1, c1 = decoder.top_down_attention(
+            torch.cat([h2, image_features_mean, embeddings], dim=1), (h1, c1)
+        )  # (batch_size_t, decoder_dim)
+        attention_weighted_encoding = decoder.attention(image_features, h1)
+        h2, c2 = decoder.language_model(
+            torch.cat([attention_weighted_encoding, h1], dim=1), (h2, c2)
+        )
 
-        awe, alpha = decoder.attention(encoder_out, h)  # (s, encoder_dim), (s, num_pixels)
-
-        alpha = alpha.view(
-            -1, enc_image_size, enc_image_size
-        )  # (s, enc_image_size, enc_image_size)
-
-        gate = decoder.sigmoid(decoder.f_beta(h))  # gating scalar, (s, encoder_dim)
-        awe = gate * awe
-
-        h, c = decoder.decode_step(torch.cat([embeddings, awe], dim=1), (h, c))  # (s, decoder_dim)
-
-        scores = decoder.fc(h)  # (s, vocab_size)
+        scores = decoder.fc(h2)  # (s, vocab_size)
         scores = F.log_softmax(scores, dim=1)
 
         # Add
         scores = top_k_scores.expand_as(scores) + scores  # (s, vocab_size)
 
         # For the first step, all k points will have the same scores (since same k previous words, h, c)
-        # 첫번째 Time-Step에는 모두 결과 값이 같기 때문에 k개의 Score 중 0번 째 index에서 결과를 추출함.
         if step == 1:
             top_k_scores, top_k_words = scores[0].topk(k, 0, True, True)  # (s)
         else:
             # Unroll and find top scores, and their unrolled indices
-            # scores.view(-1).shape = 97500 (vocab_size*k)
             top_k_scores, top_k_words = scores.view(-1).topk(k, 0, True, True)  # (s)
 
         # Convert unrolled indices to actual indices of scores
         prev_word_inds = torch.div(top_k_words, vocab_size, rounding_mode="trunc")  # (s)
         next_word_inds = top_k_words % vocab_size  # (s)
 
-        # Add new words to sequences, alphas
+        # Add new words to sequences
         seqs = torch.cat([seqs[prev_word_inds], next_word_inds.unsqueeze(1)], dim=1)  # (s, step+1)
-        seqs_alpha = torch.cat(
-            [seqs_alpha[prev_word_inds], alpha[prev_word_inds].unsqueeze(1)],
-            dim=1,
-        )  # (s, step+1, enc_image_size, enc_image_size)
 
         # Which sequences are incomplete (didn't reach <end>)?
         incomplete_inds = [
@@ -128,7 +89,6 @@ def caption_image_beam_search(encoder, decoder, image_path, tokenizer, beam_size
         # Set aside complete sequences
         if len(complete_inds) > 0:
             complete_seqs.extend(seqs[complete_inds].tolist())
-            complete_seqs_alpha.extend(seqs_alpha[complete_inds].tolist())
             complete_seqs_scores.extend(top_k_scores[complete_inds])
         k -= len(complete_inds)  # reduce beam length accordingly
 
@@ -136,10 +96,11 @@ def caption_image_beam_search(encoder, decoder, image_path, tokenizer, beam_size
         if k == 0:
             break
         seqs = seqs[incomplete_inds]
-        seqs_alpha = seqs_alpha[incomplete_inds]
-        h = h[prev_word_inds[incomplete_inds]]
-        c = c[prev_word_inds[incomplete_inds]]
-        encoder_out = encoder_out[prev_word_inds[incomplete_inds]]
+        h1 = h1[prev_word_inds[incomplete_inds]]
+        c1 = c1[prev_word_inds[incomplete_inds]]
+        h2 = h2[prev_word_inds[incomplete_inds]]
+        c2 = c2[prev_word_inds[incomplete_inds]]
+        image_features_mean = image_features_mean[prev_word_inds[incomplete_inds]]
         top_k_scores = top_k_scores[incomplete_inds].unsqueeze(1)
         k_prev_words = next_word_inds[incomplete_inds].unsqueeze(1)
 
@@ -149,106 +110,56 @@ def caption_image_beam_search(encoder, decoder, image_path, tokenizer, beam_size
         step += 1
 
     i = complete_seqs_scores.index(max(complete_seqs_scores))
-
     seq = complete_seqs[i]
+
+    # Hypotheses
     decoded_seq = tokenizer.decode(seq, skip_special_tokens=True)
-    alphas = complete_seqs_alpha[i]
-
-    return seq, decoded_seq, alphas
+    return decoded_seq
 
 
-def visualize_att(image_path, seq, alphas, tokenizer, smooth=True):
-    """
-    Visualizes caption with weights at every word.
+def forward_image(image_path):
+    frcnn_cfg = Config.from_pretrained("unc-nlp/frcnn-vg-finetuned")
+    encoder = GeneralizedRCNN.from_pretrained("unc-nlp/frcnn-vg-finetuned", config=frcnn_cfg).to(
+        device
+    )
+    encoder.eval()
 
-    Adapted from paper authors' repo: https://github.com/kelvinxu/arctic-captions/blob/master/alpha_visualization.ipynb
+    images, sizes, scales_yx = Preprocess(frcnn_cfg)(image_path)
+    output_dict = encoder(
+        images.to(device),
+        sizes.to(device),
+        scales_yx=scales_yx.to(device),
+        padding="max_detections",
+        max_detections=frcnn_cfg.max_detections,
+        return_tensors="pt",
+    )
+    features = output_dict.get("roi_features")
 
-    :param image_path: path to image that has been captioned
-    :param seq: caption
-    :param alphas: weights
-    :param tokenizer: transfomers pretrained tokenizer
-    :param smooth: smooth weights?
-    """
-    image = Image.open(image_path)
-    image = image.resize([14 * 24, 14 * 24], Image.LANCZOS)
-
-    words = [rev_word_map[ind] for ind in seq]
-
-    for t in range(len(words)):
-        if t > 50:
-            break
-        plt.subplot(np.ceil(len(words) / 5.0), 5, t + 1)
-
-        plt.text(
-            0,
-            1,
-            "%s" % (words[t]),
-            color="black",
-            backgroundcolor="white",
-            fontsize=12,
-        )
-        plt.imshow(image)
-        current_alpha = alphas[t, :]
-        if smooth:
-            alpha = skimage.transform.pyramid_expand(current_alpha.numpy(), upscale=24, sigma=8)
-        else:
-            alpha = skimage.transform.resize(current_alpha.numpy(), [14 * 24, 14 * 24])
-        if t == 0:
-            plt.imshow(alpha, alpha=0)
-        else:
-            plt.imshow(alpha, alpha=0.8)
-        plt.set_cmap(cm.Greys_r)
-        plt.axis("off")
-    plt.show()
+    return features
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Show, Attend, and Tell - Tutorial - Generate Caption"
-    )
+    parser = argparse.ArgumentParser(description="BUTD: generate caption")
 
     parser.add_argument("--img", "-i", help="path to image")
     parser.add_argument("--model", "-m", help="path to model")
-    parser.add_argument(
-        "--tokenizer_name",
-        "-wm",
-        help="tokenizer name",
-        default="monologg/kobigbird-bert-base",
-    )
-    parser.add_argument(
-        "--beam_size",
-        "-b",
-        default=3,
-        type=int,
-        help="beam size for beam search",
-    )
-    parser.add_argument(
-        "--dont_smooth",
-        dest="smooth",
-        action="store_false",
-        help="do not smooth alpha overlay",
-    )
 
     args = parser.parse_args()
 
+    # Parameters
+    checkpoint_path = args.model  # model checkpoint
+
     # Load model
-    checkpoint = torch.load(args.model, map_location=str(device))
+    checkpoint = torch.load(checkpoint_path, map_location=str(device))
     decoder = checkpoint["decoder"]
     decoder = decoder.to(device)
     decoder.eval()
-    encoder = checkpoint["encoder"]
-    encoder = encoder.to(device)
-    encoder.eval()
 
-    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name)
+    # Load word map (word2ix)
+    tokenizer = AutoTokenizer.from_pretrained("monologg/kobigbird-bert-base")
 
-    # Encode, decode with attention and beam search
-    seq, decoded_seq, alphas = caption_image_beam_search(
-        encoder, decoder, args.img, tokenizer, args.beam_size
-    )
-    alphas = torch.FloatTensor(alphas)
+    start = time.time()
 
-    print(decoded_seq)
-
-    # Visualize caption and attention of best sequence
-    # visualize_att(args.img, seq, alphas, tokenizer, args.smooth)
+    features = forward_image(args.img)
+    caption = caption_image_beam_search(features, decoder, tokenizer)
+    print(caption)

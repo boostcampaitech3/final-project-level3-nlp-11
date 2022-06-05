@@ -1,81 +1,73 @@
-## Image Captioning
-This repository is a modified code that enables AI HUB to perform Korean Image Captioning based on the code provided by https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Image-Captioning.
+# BUTD
+Implementation of "Bottom-Up and Top-Down Attention for Image Captioning and Visual Question Answering"
 
-## Installation
-Clone the repo and go inside it. Then, run:
+* https://github.com/poojahira/image-captioning-bottom-up-top-down 코드를 참고
+* AI HUB에서 제공하는 한국어 MS COCO Image Captioning 학습이 가능
+* SentencePiece tokenizer 사용
 
-```
-pip install -r requirements.txt
-```
+
 
 ## Structure
-```
+```bash
 .
-|-- Image_Captioning
-|   |-- BEST_checkpoint_5_cap_per_img_.pth.tar
-|   |-- Dataset
-	|-- MSCOCO_train_val_Korean.json
-	|-- TEST_CAPLENS_5_cap_per_img_.json
-	|-- TEST_CAPTIONS_5_cap_per_img_.json
-	|-- TEST_IMAGES_5_cap_per_img_.hdf5
-	|-- TRAIN_CAPLENS_5_cap_per_img_.json
-	|-- TRAIN_CAPTIONS_5_cap_per_img_.json
-	|-- TRAIN_IMAGES_5_cap_per_img_.hdf5
-	|-- VAL_CAPLENS_5_cap_per_img_.json
-	|-- VAL_CAPTIONS_5_cap_per_img_.json
-	|-- VAL_IMAGES_5_cap_per_img_.hdf5
-	|-- test2014
-	|-- train2014
-	`-- val2014
-|   |-- caption.py
-|   |-- create_input_files.py
-|   |-- datasets.py
-|   |-- eval.py
-|   |-- models.py
-|   |-- train.py
+|-- BEST_5checkpoint_5_cap_per_img.pth.tar
+|-- bottom-up_features
+|   |-- make_cocolist.py
+|   |-- train_ids.pkl
+|   |-- trainval_36
+       |--trainval_resnet101_faster_rcnn_genome_36.tsv
+|   |-- tsv.py
+|   |-- utils.py
+|   `-- val_ids.pkl
+|-- caption.py
+|-- checkpoint_5_cap_per_img.pth.tar
+|-- create_input_files.py
+|-- data
+|   |-- coco_kor.json
+|   |-- train2014
+|   `-- val2014
+|-- datasets.py
+|-- eval.py
+|-- feature_extract
+|   |-- modeling_frcnn.py
+|   |-- preprocessing_image.py
 |   `-- utils.py
+|-- models.py
+|-- requirements.txt
+|-- train.py
+`-- utils.py
 ```
 
-## Data Preparation
-MS COCO 이미지를 다운로드 하고 ms coco caption json파일도 함께 ./Dataset에 위치시킵니다.
+## Data preparation
+1. "./data"와 "./final_dataset" 폴더를 만든다.
 
-## Data
-create_input_files.py 내의 데이터 경로를 수정하고 실행합니다.
-./Dataset 내에 json, hdf5 파일이 생성됩니다. 
+2. MS COCO 이미지를 다운로드 하고 ./data folder에 옮긴다.(AI Hub에서 제공하는 ms coco caption json파일도 함께)
+
+3. https://imagecaption.blob.core.windows.net/imagecaption/trainval_36.zip 에서 image feature를 다운로드하고, bottom-up_features 폴더에 알집을 푼다.
+
+4.
+```bash
+python bottom-up_features/tsv.py
 ```
+
+5.
+```bash
 python create_input_files.py
 ```
-
-
-## Models
-* show attend and tell
-* https://arxiv.org/abs/1502.03044
-
-
-![image](https://user-images.githubusercontent.com/26568363/170980679-8868f89b-7ac5-453f-8ace-cd794bc5e874.png)
-
-
-
-## Train/Evaluation
-
-**train**
+## train
 * 모델을 훈련시킵니다.
 * 훈련에 필요한 데이터셋 경로, tokenizer 등과 같은 파라미터는 train.py 내에서 설정 가능합니다.
+```bash
+python train.py
 ```
-python train.py 
-```
-
-**eval**
+## eval
 * 모델을 평가합니다.
 * 평가에 필요한 파라미터는 eval.py에서 설정 가능합니다.
+```bash
+python eval.py
 ```
-python eval.py 
+## caption
+* 자신이 가지고 있는 이미지로, caption을 생성할 수 있습니다.
+```bash
+python caption.py --model ./checkpoint_5_cap_per_img.pth.tar --img ./sample.jpg
 ```
-
-## Caption
-```
-python caption.py --img ./Dataset/test2014/COCO_test2014_000000141623.jpg --model ./BEST_checkpoint_5_cap_per_img_.pth.tar
-```
-
-## Reference
-https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Image-Captioning

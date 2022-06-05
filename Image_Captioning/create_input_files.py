@@ -4,9 +4,8 @@ if __name__ == "__main__":
     # Create input files (along with word map)
     create_input_files(
         tokenizer_name="monologg/kobigbird-bert-base",
-        json_path="../Dataset/MSCOCO_train_val_Korean.json",
-        image_folder="../Dataset",
+        json_path="./data/coco_kor.json",
         captions_per_image=5,
-        output_folder="../Dataset",
+        output_folder="final_dataset",
         max_len=50,
     )
