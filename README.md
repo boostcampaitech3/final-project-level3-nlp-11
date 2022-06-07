@@ -1,10 +1,11 @@
 # 🐕 리트리버
-
-<img src="https://shields.io/badge/python-v3.8.5-blue?logo=python" />
-<img src="https://shields.io/badge/pytorch-v1.10.2-red?logo=pytorch" />
-<img src="https://img.shields.io/badge/transformers-4.10.0-yellow" />
-<img src="https://img.shields.io/badge/Streamlit-red" />
-<img src="https://img.shields.io/badge/FastAPI-blue" />
+<div align="center">
+  <img src="https://shields.io/badge/python-v3.8.5-blue?logo=python" />
+  <img src="https://shields.io/badge/pytorch-v1.10.2-red?logo=pytorch" />
+  <img src="https://img.shields.io/badge/transformers-4.10.0-yellow" />
+  <img src="https://img.shields.io/badge/Streamlit-red" />
+  <img src="https://img.shields.io/badge/FastAPI-blue" />
+</div>
 
 <br />
 
@@ -84,7 +85,9 @@ $ streamlit run streamlit_deploy.py --server.port PORT --browser.serverAddress 0
 
 ## Image Captioning
 
-![Untitled](assets/Untitled%201.png)
+<p align="center">
+  <img src="https://github.com/boostcampaitech3/final-project-level3-nlp-11/blob/main/assets/Untitled%201.png?raw=true">
+</p>
 
 - *Bottom-Up and Top-Down Attention for Image Captioning and Visual Question Answering*에서 제안한 Model을 사용했습니다.
 - Bottom-Up and Top-Down Attention Model은 이미지 내 객체를 탐지할 수 있는 모델인 Faster-RCNN을 사용하여 후보영역 인 ROI를 추출하고, 이 ROI가 객체간의 상호작용을 반영하는 데 사용됩니다.
@@ -93,7 +96,9 @@ $ streamlit run streamlit_deploy.py --server.port PORT --browser.serverAddress 0
 
 ## VQA
 
-![Untitled](assets/Untitled%202.png)
+<p align="center">
+  <img src="https://github.com/boostcampaitech3/final-project-level3-nlp-11/raw/main/assets/Untitled%202.png?raw=true">
+</p>
 
 - *VisualBERT: A Simple and Performant Baseline for Vision and Language*에서 제안한 Model을 사용했습니다.
 - VisualBERT는 Faster RCNN 을 이용한 Bottom-up구조와, VilBERT를 이용한 Top-down 구조로
@@ -118,16 +123,14 @@ $ streamlit run streamlit_deploy.py --server.port PORT --browser.serverAddress 0
 | Baseline(ResNet101 + LSTM with Attention) | Tokenizer(”monologg/kobigbird-bert-base”) |         34.17 |
 | BUTD(Bottom-Up and Top-Down Attention) | Tokenizer(”monologg/kobigbird-bert-base”) |         38.73 |
 
+  
 ### VQA
 
 | Model Name | Tokenizer | ACC |
 | --- | --- | --- |
-| ConvNext_Large+LSTM
-(over 6 same responses) | Tokenizer(”klue/bert-base”) | 0.53 |
-| VisualBert(with Faster RCNN)
-(over 6 same responses) | Tokenizer(”klue/bert-base”) | 0.58 |
-| VisualBert(with Faster RCNN, additional dataset)
-(over 6 same responses) | Tokenizer(”klue/bert-base”) | 0.64 |
+| ConvNext_Large+LSTM(over 6 same responses) | Tokenizer(”klue/bert-base”) | 0.53 |
+| VisualBert(with Faster RCNN)(over 6 same responses) | Tokenizer(”klue/bert-base”) | 0.58 |
+| VisualBert(with Faster RCNN, additional dataset)(over 6 same responses) | Tokenizer(”klue/bert-base”) | 0.64 |
 
 <br />
 
@@ -137,9 +140,10 @@ $ streamlit run streamlit_deploy.py --server.port PORT --browser.serverAddress 0
 
 실제 시연 영상은 [이곳](https://youtube.com/shorts/AVXBsLZOkvE?feature=share)에서 확인하실 수 있습니다.
 
-![Untitled](assets/Untitled%203.png)
-
-![Untitled](assets/Untitled%204.png)
+<div align="center">
+  <img src="https://github.com/boostcampaitech3/final-project-level3-nlp-11/raw/main/assets/Untitled%203.png?raw=true">
+  <img src="https://github.com/boostcampaitech3/final-project-level3-nlp-11/raw/main/assets/Untitled%204.png?raw=true">
+</div>
 
 <br />
 
@@ -185,6 +189,6 @@ $ streamlit run streamlit_deploy.py --server.port PORT --browser.serverAddress 0
 
 **VQA**
 
-- ****[VQA: Visual Question Answering****(2016)](https://arxiv.org/abs/1505.00468)
+- ****[VQA: Visual Question Answering(2016)](https://arxiv.org/abs/1505.00468)****
 - ****[VisualBERT: A Simple and Performant Baseline for Vision and Language(2019)](https://arxiv.org/abs/1908.03557)****
 - **[SKTBrain / BAN-KVQA](https://github.com/SKTBrain/BAN-KVQA)**
