@@ -91,7 +91,7 @@ $ streamlit run streamlit_deploy.py --server.port PORT --browser.serverAddress 0
 
 <br />
 
-# 3. Models
+# 3. 프로젝트 모델
 
 ## Image Captioning
 
@@ -146,14 +146,12 @@ $ streamlit run streamlit_deploy.py --server.port PORT --browser.serverAddress 0
 
 <br />
 
-# 5. 시연 영상
+# 5. 시연 예시
 
 실제 시연 영상은 [이곳](https://youtube.com/shorts/AVXBsLZOkvE?feature=share)에서 확인하실 수 있습니다.
 
 <div align="center">
-  <img src="https://github.com/boostcampaitech3/final-project-level3-nlp-11/blob/main/assets/img1.jpg?raw=true" width="46.5%">
-  
-  <img src="https://github.com/boostcampaitech3/final-project-level3-nlp-11/raw/main/assets/Untitled%204.png?raw=true">
+  <img src="https://github.com/boostcampaitech3/final-project-level3-nlp-11/blob/main/assets/img4.png?raw=true">
 </div>
 
 <br />
