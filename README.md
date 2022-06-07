@@ -16,7 +16,9 @@
 🐕 리트리버는 **시각장애인을 위하여 시야를 음성으로 안내하는 서비스**입니다.
 시각장애인이 기존의 보조기구로 시야를 인지할 수 없을 때, 사진을 찍어 상황에 대한 설명이 음성으로 제공(Image Captioning)되는 기능과 이미지에 대한 부가 설명이 필요하다면 질문에 대한 대답(Visual Question Answering)이 제공됩니다.
 
-![Untitled](assets/Untitled.png)
+<div align="center">
+  <img src="https://github.com/boostcampaitech3/final-project-level3-nlp-11/blob/main/assets/img2.png?raw=true">
+</div>
 
 음향신호기가 없는 신호등과 무신호 횡단보도는 시각장애인의 보행을 어렵게 하는 많은 요소 중 하나 입니다. 무신호 횡단보도 뿐만 아니라 도로 위의 장애물, 깨져 있는 연석 등 시각장애인이 보행을 하는데 위협이 되는 요소가 곳곳에 존재합니다. 이를 해결하고자 해당 프로젝트를 진행하였습니다.
 
@@ -39,6 +41,10 @@ Windows : [download](https://drive.google.com/file/d/1_sQt__98URycUtygbjHZ3Th8h
 $ wget --no-check-certificate --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1_sQt__98URycUtygbjHZ3Th8hpGTx806' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1_sQt__98URycUtygbjHZ3Th8hpGTx806" -O quantized_model.pth.tar && rm -rf /tmp/cookies.txt
 ```
 
+<br />
+
+<br />
+
 ## VQA(**Visual Question Answering)**
 
 ### **VQA model**
@@ -49,6 +55,10 @@ Windows : [download](https://drive.google.com/file/d/1Ttz8DLQl9ZxrwLznJwNLcutr2
 # linux
 $ wget --no-check-certificate --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1Ttz8DLQl9ZxrwLznJwNLcutr2hhZxZOk' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1Ttz8DLQl9ZxrwLznJwNLcutr2hhZxZOk" -O vqa_demo_epoch1.pth && rm -rf /tmp/cookies.txt
 ```
+
+<br />
+
+<br />
 
 ### **Label to Answer**
 
@@ -63,7 +73,7 @@ $ wget --no-check-certificate --load-cookies /tmp/cookies.txt "https://docs.goog
 
 <br />
 
-# **Deploy**
+## **Deploy**
 
 ### **FastAPI**
 
@@ -141,7 +151,8 @@ $ streamlit run streamlit_deploy.py --server.port PORT --browser.serverAddress 0
 실제 시연 영상은 [이곳](https://youtube.com/shorts/AVXBsLZOkvE?feature=share)에서 확인하실 수 있습니다.
 
 <div align="center">
-  <img src="https://github.com/boostcampaitech3/final-project-level3-nlp-11/raw/main/assets/Untitled%203.png?raw=true">
+  <img src="https://github.com/boostcampaitech3/final-project-level3-nlp-11/blob/main/assets/img1.jpg?raw=true" width="46.5%">
+  
   <img src="https://github.com/boostcampaitech3/final-project-level3-nlp-11/raw/main/assets/Untitled%204.png?raw=true">
 </div>
 
