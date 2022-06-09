@@ -3,13 +3,18 @@ Implementation of "Bottom-Up and Top-Down Attention for Image Captioning and Vis
 
 * https://github.com/poojahira/image-captioning-bottom-up-top-down 코드를 참고
 * AI HUB에서 제공하는 한국어 MS COCO Image Captioning 학습이 가능
-* SentencePiece tokenizer 사용
 
+### 개선점
+* SentencePiece tokenizer
+* Fasttext embedding
+* BERT Embedding
+* Scheduled sampling
 
 
 ## Structure
 ```bash
 .
+|-- BEST_5checkpoint_5_cap_per_img.pth.tar
 |-- bottom-up_features
 |   |-- make_cocolist.py
 |   |-- train_ids.pkl
@@ -31,6 +36,7 @@ Implementation of "Bottom-Up and Top-Down Attention for Image Captioning and Vis
 |   |-- modeling_frcnn.py
 |   |-- preprocessing_image.py
 |   `-- utils.py
+|-- ko.bin
 |-- models.py
 |-- requirements.txt
 |-- train.py
@@ -59,6 +65,7 @@ python create_input_files.py
 ```bash
 python train.py
 ```
+* Embedding layer에 사전학습된 Word Embedding(fasttext)를 사용하려면, https://github.com/Kyubyong/wordvectors 에서 Pretrained Embedding 값을 내려받고, 최상위폴더에 ko.bin을 위치시켜야 합니다.
 ## eval
 * 모델을 평가합니다.
 * 평가에 필요한 파라미터는 eval.py에서 설정 가능합니다.
